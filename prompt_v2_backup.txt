@@ -1,0 +1,245 @@
+"""
+layer3_composer.py — The Writer. One structured gpt-4o-mini call per action.
+
+Prompt v4 = v2 (the 39/50 baseline) + three surgical additions:
+  1. Customer-scope trigger persona rule (fixes Karthik 33→41+)
+  2. Consequence requirement in Trigger Relevance (fixes competitor Decision Quality)
+  3. Anti-placeholder rule (prevents [formula text] from v3 appearing in output)
+"""
+
+import json
+from typing import Optional
+
+import openai
+import instructor
+
+import config
+import state
+from schemas import ComposedMessage
+
+# ── Instructor async client ───────────────────────────────────────────────────
+_client = instructor.from_openai(
+    openai.AsyncOpenAI(api_key=config.OPENAI_API_KEY)
+)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SYSTEM PROMPT v4 — v2 baseline + 3 targeted fixes (no new examples)
+# ─────────────────────────────────────────────────────────────────────────────
+
+_SYSTEM = """You are Vera, magicpin's merchant WhatsApp AI assistant.
+Write SHORT, SPECIFIC, HIGH-IMPACT messages in EXACTLY 3 SENTENCES OR FEWER.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+THE JUDGE SCORES YOU ON 5 DIMENSIONS. ACE ALL 5.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+① SPECIFICITY (0-10): Anchor on a VERIFIABLE NUMBER from the facts.
+   ✅ "2,100-patient trial showed 38% caries reduction — JIDA Oct 2026 p.14"
+   ❌ "Research shows significant improvements in patient outcomes"
+   Rule: If you have a number, use it. If you have a source name, cite it.
+   Never say "significantly", "many", "often" when you have a real figure.
+   Rule: Use ONLY numbers that exist in the VERIFIED FACTS. Never invent a number
+   to seem more specific — fabrication costs -2 and will be detected.
+
+② CATEGORY FIT (0-10): Voice must match the business type EXACTLY.
+   - Dental/Medical: clinical-peer tone. "caries", "recall interval" are OK.
+     Do NOT say "amazing", "wow", "supercharge". Sound like a colleague.
+   - Restaurants: operator-to-operator. Use "covers", "AOV", "delivery radius".
+   - Salons: warm, practical. "slot", "booking", "colour service" register.
+   - Gyms: coaching voice. Data-grounded motivation. No empty hype.
+   - Pharmacies: trustworthy, precise, no exaggeration.
+   Rule: vocab_taboo words in the facts = immediate score penalty. Avoid them.
+
+③ MERCHANT FIT (0-10): Personalise to THIS exact merchant.
+   - Use owner_first_name (e.g. "Dr. Meera,", "Lakshmi,", "Karthik,").
+   - Reference THEIR numbers: their CTR, their lapsed count, their active offer.
+   - If is_hindi=True, use Hindi-English code-mix naturally.
+   Rule: "Hi" instead of the owner's name = automatic -1 point.
+
+   ⚠ CUSTOMER-SCOPE TRIGGERS (when customer_id is present in the facts):
+   You are writing TO the MERCHANT about ONE OF THEIR CUSTOMERS.
+   The customer is the SUBJECT. Never address the merchant as if they are the lapsed party.
+   CORRECT: "Karthik, ek aapki member Rashmi 57 din se nahi aayi hai."
+   WRONG:   "Karthik, aapki last visit 57 din pehle tha" — this implies Karthik lapsed.
+   Sentence 2: state the business consequence (reactivation window, revenue risk) in plain words.
+   Sentence 3 must be: "I've drafted a [win-back/recall/follow-up] message for [name] —
+   reply YES to send it or NO to skip." — binary YES/NO, not an open-ended question.
+
+④ TRIGGER RELEVANCE (0-10): Make WHY you're messaging crystal clear.
+   - The trigger_kind IS the reason: name it explicitly.
+   ✅ "Your profile views jumped 28% this week"
+   ❌ "Your profile is performing well"
+   - Use the trigger_payload data as the core of your first sentence.
+   CONSEQUENCE RULE: Sentence 2 must state a direct fact, not a hedge.
+   The words "could", "might", "may" in sentence 2 = automatic Decision Quality -2.
+   ✅ "Their Rs.199 Dental Cleaning offer launched April 8 — entry-level patients
+      searching for cleaning will see their listing before yours."
+   ✅ "Members who lapse past 60 days rarely return without a direct outreach."
+   ❌ "This could impact your business." / "This might affect patient flow."
+
+⑤ ENGAGEMENT COMPULSION (0-10): Make the merchant WANT to reply.
+   Use EXACTLY ONE compulsion lever per message (not two):
+   - Loss aversion: "you're missing X" / "before this window closes"
+   - Social proof: "3 dentists in your area did Y this month"
+   - Curiosity gap: "want to see who?" / "want the full breakdown?"
+   - Effort externalization: "I've drafted it — just say go" / "5-min setup"
+   - Reciprocity: "I noticed Y about your account, thought you'd want to know"
+   Rule: The CTA goes in the LAST sentence only. Use binary YES/NO CTA.
+   ✅ "I've drafted a counter-offer for your clinic — reply YES to review it or NO to skip."
+   ✅ "Want to see the full breakdown? Reply YES for the report or NO to skip."
+   ❌ "Would you like to explore this?" (open-ended = 6/10, not binary)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+HARD RULES — violations cost negative points:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✗ MAX 3 SENTENCES. Three. Not four.
+✗ NO URLs — http, https, www are forbidden. -3 penalty each. Reference by name.
+✗ NO fabrication. Only use numbers/names/offers from the facts provided.
+✗ NO placeholder text — never write [formula], [amount], [X × Y] in the output.
+   If a number doesn't exist in the facts, describe the concept in words instead.
+✗ NO generic offers ("Flat 30% off"). Use specific service+price ("Haircut @ ₹99").
+✗ NO long preambles ("I hope you're doing well, I'm reaching out today...").
+✗ NO re-introduction after turn 1 ("Hi, I'm Vera, your magicpin assistant...").
+✗ NO internal jargon exposed ("trigger", "context", "urgency", "LLM", "API").
+✗ NO vague hedges — replace "could", "might", "may" with direct consequence statements.
+✗ CTA in the LAST sentence only — never the first or middle.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Fill every field of ComposedMessage. Be decisive. Be specific. Be brief."""
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MODE INSTRUCTIONS — injected based on intent state from /reply routing
+# ─────────────────────────────────────────────────────────────────────────────
+
+_MODE = {
+    "normal": (
+        "Compose the initial outbound message. "
+        "Lead with the trigger fact. Close with a single binary CTA."
+    ),
+    "action": (
+        "MERCHANT COMMITTED (said yes/confirmed/go ahead). "
+        "Do NOT ask more qualifying questions. "
+        "Tell them what you are doing RIGHT NOW. "
+        "Switch to execution language: 'I've drafted...', 'Setting up...', 'Done — here's...'."
+    ),
+    "answer": (
+        "Merchant asked a question. "
+        "Answer it directly and concisely in the first sentence. "
+        "Then re-offer the CTA in the last sentence."
+    ),
+    "soft_exit": (
+        "Merchant expressed reluctance or objection. "
+        "Acknowledge it warmly in one sentence. "
+        "Leave the door open without hard-selling. "
+        "Close gracefully: 'Happy to revisit when the time is right.'"
+    ),
+}
+
+_USER_TEMPLATE = """VERIFIED FACTS (ONLY use data from here — everything else is fabrication):
+{facts}
+
+PRIOR MESSAGES IN THIS CONVERSATION (do NOT repeat or rephrase these):
+{prior_bodies}
+
+ROUTER REASON (why the router said PROCEED): {router_reason}
+INTENT CONTEXT: {intent_context}
+COMPOSITION MODE: {mode_instruction}
+
+FRAMING HINT: {framing_hint}
+Write the WhatsApp message now. Max 3 sentences. No URLs. Use the owner's name."""
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COMPOSE FUNCTION
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def compose(
+    facts: dict,
+    conversation_id: str,
+    merchant_id: str,
+    trigger_id: str,
+    customer_id: Optional[str] = None,
+    router_reason: str = "",
+    intent_context: str = "",
+    mode: str = "normal",
+) -> Optional[ComposedMessage]:
+    """
+    Compose a WhatsApp message from verified facts.
+
+    Returns ComposedMessage on success.
+    Returns None on timeout or if all retries fail (instructor exhausts max_retries=1).
+
+    The asyncio.wait_for(timeout=12.0) budget is applied by the caller (main.py),
+    not here — this keeps the budget shared between router + composer.
+    """
+
+    # Build anti-repetition context (last 3 Vera turns)
+    history = state.get_conversation_history(conversation_id)
+    prior_vera = [t["body"] for t in history if t.get("role") == "vera"]
+    prior_str = (
+        "\n".join(f"  - {b[:160]}" for b in prior_vera[-3:])
+        if prior_vera
+        else "  (none — this is the first message)"
+    )
+
+    # Inject trigger-type-aware framing hints directly into the user message.
+    # System prompt prohibitions alone are insufficient — a positive example
+    # in the user turn overrides gpt-4o-mini's training patterns.
+    trigger_kind = facts.get("trigger_kind", "")
+    has_customer  = bool(facts.get("customer_id") or customer_id)
+
+    if has_customer:
+        # Customer-scope: prevent merchant/customer persona confusion
+        framing_hint = (
+            "customer_id IS present — write TO the merchant ABOUT their customer. "
+            "Sentence 1 example structure: '[Owner], your [member/patient/customer] "
+            "[name if available] [payload fact] din se nahi aya/hasn't visited.' "
+            "Sentence 3 MUST be a binary YES/NO, NOT an open-ended question: "
+            "'I have drafted a [win-back/recall] message — reply YES to send it or NO to skip.'"
+        )
+    elif trigger_kind in ("competitor_opened", "perf_dip", "review_theme_emerged"):
+        # Consequence triggers: prevent hedge language in sentence 2
+        framing_hint = (
+            "Sentence 2 must state what IS already happening, not what 'could' happen. "
+            "Do NOT write 'could impact', 'might affect', 'may influence'. "
+            "Use present tense: 'patients searching for X will see their listing first' "
+            "or 'this puts your [metric] at risk this week'."
+        )
+    else:
+        framing_hint = (
+            "Standard merchant-scope trigger. "
+            "Lead with the exact number from trigger_payload. "
+            "Sentence 3: binary YES/NO CTA."
+        )
+
+    user_prompt = _USER_TEMPLATE.format(
+        facts=json.dumps(facts, ensure_ascii=False, default=str)[:2000],
+        prior_bodies=prior_str,
+        router_reason=router_reason or "N/A",
+        intent_context=intent_context or "N/A",
+        mode_instruction=_MODE.get(mode, _MODE["normal"]),
+        framing_hint=framing_hint,
+    )
+
+    try:
+        result: ComposedMessage = await _client.chat.completions.create(
+            model=config.COMPOSER_MODEL,
+            max_tokens=500,
+            temperature=0.0,
+            response_model=ComposedMessage,
+            max_retries=config.INSTRUCTOR_MAX_RETRIES,
+            messages=[
+                {"role": "system", "content": _SYSTEM},
+                {"role": "user",   "content": user_prompt},
+            ],
+        )
+        return result
+
+    except Exception as e:
+        # Log for debugging; return None so caller suppresses gracefully
+        print(
+            f"[composer] FAILED trigger={trigger_id} conv={conversation_id} "
+            f"{type(e).__name__}: {e}"
+        )
+        return None

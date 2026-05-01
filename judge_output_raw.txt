@@ -1,0 +1,100 @@
+
+[95m[1m======================================================================[0m
+[95m[1m                  magicpin AI Challenge — LLM Judge                   [0m
+[95m[1m======================================================================[0m
+
+[94m[INFO][0m LLM Provider: OpenAI (gpt-4o-mini)
+[94m[INFO][0m Testing LLM connection...
+[92m[PASS][0m LLM connected successfully
+
+[95m[1m======================================================================[0m
+[95m[1m                     LLM JUDGE — FULL_EVALUATION                      [0m
+[95m[1m======================================================================[0m
+
+[94m[INFO][0m Bot: http://localhost:8080
+[94m[INFO][0m LLM: OpenAI (gpt-4o-mini)
+[94m[INFO][0m Loaded: 5 categories, 10 merchants, 25 triggers
+
+[96m[1m--- WARMUP ---[0m
+
+[92m[PASS][0m healthz (2066ms)
+[92m[PASS][0m metadata — Team: Team Vera, Model: gpt-4o-mini (router + composer + intent classifier)
+
+[96m[1m--- CONTEXT PUSH ---[0m
+
+  [FAIL] category/dentists
+  [FAIL] category/gyms
+  [FAIL] category/pharmacies
+  [FAIL] category/restaurants
+  [FAIL] category/salons
+  [FAIL] merchant/001
+  [FAIL] merchant/002
+  [FAIL] merchant/003
+  [FAIL] merchant/004
+  [FAIL] merchant/005
+
+[96m[1m--- FULL EVALUATION ---[0m
+
+[92m[PASS][0m All contexts pushed
+
+[96m[1m--- SCORING COMPOSITIONS ---[0m
+
+[94m[INFO][0m Batch 1: 0 actions (4160ms)
+[94m[INFO][0m Batch 2: 1 actions (8175ms)
+[35m[LLM][0m Analyzing message...
+
+[96mMessage:[0m "Lakshmi, offering a Haircut at ₹99 in Kapra ensure..."
+  Specificity            [[92m████████████████[2m░░░░[0m] [92m 8/10[0m
+  Category Fit           [[92m██████████████████[2m░░[0m] [92m 9/10[0m
+  Merchant Fit           [[92m██████████████████[2m░░[0m] [92m 9/10[0m
+  Decision Quality       [[92m██████████████[2m░░░░░░[0m] [92m 7/10[0m
+  Engagement             [[92m████████████████[2m░░░░[0m] [92m 8/10[0m
+
+  [1mTOTAL: 41/50[0m
+[94m[INFO][0m Batch 3: 2 actions (5688ms)
+[35m[LLM][0m Analyzing message...
+
+[96mMessage:[0m "Karthik, your member has not visited the gym in 57..."
+  Specificity            [[93m████████████[2m░░░░░░░░[0m] [93m 6/10[0m
+  Category Fit           [[92m████████████████[2m░░░░[0m] [92m 8/10[0m
+  Merchant Fit           [[92m██████████████[2m░░░░░░[0m] [92m 7/10[0m
+  Decision Quality       [[92m██████████████[2m░░░░░░[0m] [92m 7/10[0m
+  Engagement             [[92m████████████████[2m░░░░[0m] [92m 8/10[0m
+
+  [1mTOTAL: 36/50[0m
+[35m[LLM][0m Analyzing message...
+
+[96mMessage:[0m "Suresh, your Weekday Lunch Thali at ₹149 in Indira..."
+  Specificity            [[93m████████████[2m░░░░░░░░[0m] [93m 6/10[0m
+  Category Fit           [[92m████████████████[2m░░░░[0m] [92m 8/10[0m
+  Merchant Fit           [[92m██████████████[2m░░░░░░[0m] [92m 7/10[0m
+  Decision Quality       [[93m██████████[2m░░░░░░░░░░[0m] [93m 5/10[0m
+  Engagement             [[93m████████████[2m░░░░░░░░[0m] [93m 6/10[0m
+
+  [1mTOTAL: 32/50[0m
+[94m[INFO][0m Batch 4: 1 actions (5988ms)
+[35m[LLM][0m Analyzing message...
+
+[96mMessage:[0m "Ramesh, dispensing recalled batches causes immedia..."
+  Specificity            [[92m████████████████[2m░░░░[0m] [92m 8/10[0m
+  Category Fit           [[92m██████████████████[2m░░[0m] [92m 9/10[0m
+  Merchant Fit           [[92m██████████████████[2m░░[0m] [92m 9/10[0m
+  Decision Quality       [[92m██████████████[2m░░░░░░[0m] [92m 7/10[0m
+  Engagement             [[92m████████████████[2m░░░░[0m] [92m 8/10[0m
+
+  [1mTOTAL: 41/50[0m
+[94m[INFO][0m Batch 5: 0 actions (3253ms)
+
+[96m[1m--- FINAL SUMMARY ---[0m
+
+[94m[INFO][0m Messages scored: 4
+
+  Avg Specificity        [[92m██████████████[2m░░░░░░[0m] [92m 7/10[0m
+  Avg Category Fit       [[92m████████████████[2m░░░░[0m] [92m 8/10[0m
+  Avg Merchant Fit       [[92m████████████████[2m░░░░[0m] [92m 8/10[0m
+  Avg Decision Quality   [[93m████████████[2m░░░░░░░░[0m] [93m 6/10[0m
+  Avg Engagement         [[92m██████████████[2m░░░░░░[0m] [92m 7/10[0m
+
+[1m  AVERAGE SCORE: 36/50 (72%)[0m
+
+  [93mGOOD[0m
