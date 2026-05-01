@@ -27,7 +27,7 @@ BOT_URL = "http://localhost:8080"
 LLM_PROVIDER = "openai"
 
 # Your API key (paste your key here)
-LLM_API_KEY = "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"  # <-- PUT YOUR API KEY HERE
+LLM_API_KEY = ""  # <-- PUT YOUR API KEY HERE
 
 # Model to use (leave empty for default, or specify like "gpt-4o", "claude-3-5-sonnet-20241022", etc.)
 LLM_MODEL = ""  # <-- Optional: specify model or leave empty for default
