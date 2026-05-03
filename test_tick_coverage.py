@@ -10,7 +10,7 @@ import urllib.error
 import json
 from datetime import datetime
 
-BOT_URL = "http://localhost:8080"
+BOT_URL = "http://localhost:8000"
 
 def _post(path, payload):
     req = urllib.request.Request(

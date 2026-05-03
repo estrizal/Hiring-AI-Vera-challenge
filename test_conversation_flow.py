@@ -5,7 +5,7 @@ from datetime import datetime
 import uuid
 
 # Configuration
-BOT_URL = "http://localhost:8080"
+BOT_URL = "http://localhost:8000"
 
 def _post(path: str, payload: dict) -> dict:
     url = f"{BOT_URL}{path}"
