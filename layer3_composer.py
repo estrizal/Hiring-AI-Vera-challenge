@@ -152,6 +152,7 @@ Mode: {mode_instruction}
 
 <instructions>
 Write the WhatsApp message now. Max 3 sentences. No URLs. Use the owner's first name.
+CRITICAL LANGUAGE RULE: If the FACTS JSON shows `"is_hindi": true`, you MUST write the message body in a conversational Hindi-English code-mix (Hinglish) using Latin script. Otherwise, use English.
 In the `rationale` field, think step-by-step:
   (1) which signal / trigger fact you chose and why
   (2) the exact numbers you used and which FACTS field they came from

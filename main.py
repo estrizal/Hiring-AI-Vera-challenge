@@ -53,6 +53,7 @@ app = FastAPI(title="Vera — magicpin AI Challenge", version="3.0.0")
 
 _METADATA = {
     "team_name": "Team Vera",
+    "team_members": ["Aditya"],
     "model": "gpt-4o-mini (router + intent) + gpt-4o (composer)",
     "approach": (
         "3-layer hybrid architecture: "
@@ -64,8 +65,9 @@ _METADATA = {
         "strategic advisor framing per case-study rubric. "
         "Single asyncio.wait_for(27.0) covers Layer 2+3 pipeline per trigger."
     ),
+    "contact_email": "adityamansi2006@gmail.com",
     "version": "3.0.0",
-    "submitted_at": "2026-05-01T00:00:00Z",
+    "submitted_at": "2026-05-03T00:00:00Z",
 }
 
 
