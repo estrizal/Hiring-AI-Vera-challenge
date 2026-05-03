@@ -10,9 +10,9 @@ load_dotenv()
 OPENAI_API_KEY: str = os.environ.get("OPENAI_API_KEY", "")
 
 # ── Models ────────────────────────────────────────────────────────────────────
-# Unified to gpt-4o-mini: maximum speed on Tier 1 (500 RPM), lowest latency.
+# Unified to gpt-4o-mini for speed/cost, but user requested gpt-4o for composer.
 ROUTER_MODEL: str   = "gpt-4o-mini"   # Layer 2 semantic router
-COMPOSER_MODEL: str = "gpt-4o"   # Layer 3 composer
+COMPOSER_MODEL: str = "gpt-4o"        # Layer 3 composer
 INTENT_MODEL: str   = "gpt-4o-mini"   # /reply intent classifier
 
 # ── Instructor ────────────────────────────────────────────────────────────────
