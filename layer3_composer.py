@@ -737,9 +737,10 @@ async def compose(
         # and strictly obey the reply mode instructions.
         system_prompt += (
             f"\n\n=======================================================\n"
-            f"CRITICAL OVERRIDE: YOU ARE REPLYING TO A MERCHANT MESSAGE.\n"
+            f"CRITICAL OVERRIDE: YOU ARE REPLYING TO A MESSAGE.\n"
             f"DO NOT WRITE AN INITIAL OUTBOUND TRIGGER MESSAGE.\n"
             f"DO NOT RESTATE THE TRIGGER FACTS AS NEW INFORMATION.\n"
+            f"IMPORTANT: For 'suppression_key', use exactly 'reply:{mode}:now'. Do not use 'none'.\n"
             f"YOU MUST FOLLOW THIS MODE INSTRUCTION EXACTLY:\n"
             f"{_MODE.get(mode, _MODE['normal'])}\n"
             f"=======================================================\n"

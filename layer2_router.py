@@ -93,7 +93,11 @@ async def route(
 
     # ── STEP 2A: Python fast-paths (0ms) ─────────────────────────────────────
 
-    # Guard 1: Atomic daily cap check + reserve
+    # Guard 1a: Merchant hard opt-out (hostile suppress key active)
+    if state.is_merchant_suppressed(merchant_id):
+        return False, f"Merchant {merchant_id} opted out — suppressed for 30 days"
+
+    # Guard 1b: Atomic daily cap check + reserve
     # reserve_message_slot() checks AND increments under asyncio.Lock in one
     # operation — eliminates TOCTOU race condition completely.
     if not await state.reserve_message_slot(merchant_id):

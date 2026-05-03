@@ -88,14 +88,21 @@ def rank_triggers(
     # Sort descending: highest-priority trigger first
     scored.sort(key=lambda x: x[0], reverse=True)
 
-    # ── Per-merchant deduplication ────────────────────────────────────────────
-    seen_merchants: set = set()
+    # ── Per-merchant-kind deduplication ──────────────────────────────────────
+    # Original: one trigger per merchant (too aggressive — kills kinds that
+    # only exist for one merchant, e.g. recall_due only for m_001).
+    # Fixed: one trigger per (merchant, kind) pair. Different kinds for the
+    # same merchant all fire, but duplicate kinds for the same merchant
+    # are still deduped (prevents true spam).
+    seen_merchant_kinds: set = set()
     result: List[Tuple[str, dict, str]] = []
     for _, tid, payload, mid in scored:
-        if mid not in seen_merchants:
+        kind = payload.get("kind", "unknown")
+        key = (mid, kind)
+        if key not in seen_merchant_kinds:
             result.append((tid, payload, mid))
-            seen_merchants.add(mid)
-        # else: lower-priority duplicate for same merchant — skip this tick
+            seen_merchant_kinds.add(key)
+        # else: duplicate kind for same merchant — skip this tick
 
     return result
 

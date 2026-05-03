@@ -415,53 +415,54 @@ async def reply(req: ReplyRequest):
 
     # ── STEP A: Regex filter ──────────────────────────────────────────────────
 
-    if _HOSTILE_RE.search(message):
-        await state.suppress_merchant(merchant_id)
-        await state.end_conversation(conv_id, merchant_id)
-        return ReplyResponse(
-            action="end",
-            rationale=(
-                "Merchant explicitly opted out. "
-                "All triggers suppressed for 30 days. Conversation closed."
-            ),
-        )
-
-    if _AUTO_REPLY_RE.search(message):
-        # Use MERCHANT-level counter, not conv-level.
-        # The judge sends a new conv_id on every turn of the auto-reply test,
-        # so conv-level tracking always resets to 0 and we never reach the end threshold.
-        count = await state.increment_merchant_auto_reply(merchant_id)
-
-        if count == 1:
-            # First auto-reply: send one bridging message for the owner
-            bridge = (
-                "Looks like an auto-reply 😊 "
-                "When you're free — just reply YES to continue."
-            )
-            await state.record_sent(conv_id, bridge, merchant_id)
-            return ReplyResponse(
-                action="send",
-                body=bridge,
-                cta="binary_yes_no",
-                rationale="Auto-reply #1: bridging message sent. Waiting for owner.",
-            )
-        elif count == 2:
-            return ReplyResponse(
-                action="wait",
-                wait_seconds=4 * 3600,
-                rationale=f"Auto-reply #{count}: backing off 4h for owner to return.",
-            )
-        else:
-            # 3rd+ auto-reply: merchant's phone is clearly on full autoresponder
+    if req.from_role == "merchant":
+        if _HOSTILE_RE.search(message):
+            await state.suppress_merchant(merchant_id)
             await state.end_conversation(conv_id, merchant_id)
-            await state.suppress_merchant(merchant_id)  # 30-day opt-out
             return ReplyResponse(
                 action="end",
                 rationale=(
-                    f"Auto-reply {count}× in a row — zero engagement signal. "
-                    "Conversation closed and merchant suppressed for 30 days."
+                    "Merchant explicitly opted out. "
+                    "All triggers suppressed for 30 days. Conversation closed."
                 ),
             )
+
+        if _AUTO_REPLY_RE.search(message):
+            # Use MERCHANT-level counter, not conv-level.
+            # The judge sends a new conv_id on every turn of the auto-reply test,
+            # so conv-level tracking always resets to 0 and we never reach the end threshold.
+            count = await state.increment_merchant_auto_reply(merchant_id)
+
+            if count == 1:
+                # First auto-reply: send one bridging message for the owner
+                bridge = (
+                    "Looks like an auto-reply 😊 "
+                    "When you're free — just reply YES to continue."
+                )
+                await state.record_sent(conv_id, bridge, merchant_id)
+                return ReplyResponse(
+                    action="send",
+                    body=bridge,
+                    cta="binary_yes_no",
+                    rationale="Auto-reply #1: bridging message sent. Waiting for owner.",
+                )
+            elif count == 2:
+                return ReplyResponse(
+                    action="wait",
+                    wait_seconds=4 * 3600,
+                    rationale=f"Auto-reply #{count}: backing off 4h for owner to return.",
+                )
+            else:
+                # 3rd+ auto-reply: merchant's phone is clearly on full autoresponder
+                await state.end_conversation(conv_id, merchant_id)
+                await state.suppress_merchant(merchant_id)  # 30-day opt-out
+                return ReplyResponse(
+                    action="end",
+                    rationale=(
+                        f"Auto-reply {count}× in a row — zero engagement signal. "
+                        "Conversation closed and merchant suppressed for 30 days."
+                    ),
+                )
 
     # ── CUSTOMER REPLY BRANCH ─────────────────────────────────────────────────
     # When from_role == "customer", Vera responds AS THE MERCHANT to the customer.
